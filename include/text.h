@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <X11/Xutil.h>
 
 #include "color_macros.h"
 
@@ -19,6 +20,7 @@ typedef struct{
 	int kerning;
 	char *text;
 	uint8_t *textbuffer;
+	XImage *ximage;
 	bool visible;
 	int x;
 	int y;
@@ -312,8 +314,11 @@ text_t *createTextElement(int x, int y, char *text, int fontSize, uint8_t fg[3],
 
 void deleteTextElement(text_t *text){
 	text->visible = false;
+	if(text->ximage)
+		XDestroyImage(text->ximage);
+	else
+		free(text->textbuffer);
 	free(text->text);
-	free(text->textbuffer);
 	free(text->fgColor);
 	free(text->bgColor);
 	free(text);

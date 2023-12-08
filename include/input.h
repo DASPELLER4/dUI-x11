@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #include "text.h"
 
@@ -20,30 +22,36 @@ typedef struct{
 	void (*onKeyPress)();
 	bool focused;
 	bool visible;
+	XImage *ximage;
 	int x;
 	int y;
 } input_t;
 
-input_t *createInputElement(int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
-	input_t *newInput = (input_t*)calloc(1,sizeof(input_t));
-	newInput->visible = true;
-	newInput->x = x;
-	newInput->y = y;
-	newInput->width = width;
-	newInput->tempText = calloc(width+1,1);
-	memset(newInput->tempText, 0x20, width);
-	newInput->maxInputLength = 2;
-	newInput->input = calloc(newInput->maxInputLength, 1);
-	newInput->text = createTextElement(x, y, newInput->tempText, fontSize, fg, bg, bpp);
-	return newInput;
+input_t *_createInputElement(int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
+        input_t *newInput = (input_t*)calloc(1,sizeof(input_t));
+        newInput->visible = true;
+        newInput->x = x;
+        newInput->y = y;
+        newInput->width = width;
+        newInput->tempText = calloc(width+1,1);
+        memset(newInput->tempText, 0x20, width);
+        newInput->maxInputLength = 2;
+        newInput->input = calloc(newInput->maxInputLength, 1);
+        newInput->text = createTextElement(x, y, newInput->tempText, fontSize, fg, bg, bpp);
+        return newInput;
 }
 
-void deleteInputElement(input_t *input){
-	deleteTextElement(input->text);
-	free(input->tempText);
-	free(input->input);
-	free(input);
-	input = NULL;
+void _writeInputElement(input_t* inputReturn ,int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
+	inputReturn->visible = true;
+	inputReturn->x = x;
+	inputReturn->y = y;
+	inputReturn->width = width;
+	inputReturn->tempText = calloc(width+1,1);
+	memset(inputReturn->tempText, 0x20, width);
+	inputReturn->maxInputLength = 2;
+	inputReturn->input = calloc(newInput->maxInputLength, 1);
+	inputReturn->text = _createTextElement(x, y, newInput->tempText, fontSize, fg, bg, bpp);
+	return newInput;
 }
 
 void renderInput(input_t *input){
@@ -82,7 +90,7 @@ void addCharacterToInput(unsigned char c, input_t *input){
 			break;
 		case 0xD:
 			if(input->onReturn)
-				input->onReturn;
+				input->onReturn();
 			return;
 			break;
 	}

@@ -8,6 +8,7 @@
 #include "mouse.h"
 #include "keyboard.h"
 #include "input.h"
+#include "uielement.h"
 
 #endif
 

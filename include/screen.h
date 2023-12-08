@@ -22,6 +22,7 @@ typedef struct{
 	Display *display;
 	Window window;
 	Visual *visual;
+	GC gc;
 	int defaultScreen;
 	int bpp;
 	keyboard_t *keyboard;
@@ -38,6 +39,9 @@ typedef struct{
 	bool exposed;
 } screen_t;
 
+// TODO:
+// add ximage to each UI element (see renderInput)
+
 screen_t *createScreen(int x, int y, int width, int height){
 	screen_t *newScreen = (screen_t*)calloc(1,sizeof(screen_t));
 	newScreen->display = XOpenDisplay(NULL);
@@ -53,6 +57,7 @@ screen_t *createScreen(int x, int y, int width, int height){
 	newScreen->mouse = getMouse();
 	newScreen->keyboard = getKeyboard();
 	newScreen->visual = DefaultVisual(newScreen->display, newScreen->defaultScreen);
+	newScreen->gc = XCreateGC(newScreen->display, newScreen->window, newScreen->defaultScreen, NULL);
 	newScreen->bpp = DefaultDepth(newScreen->display, newScreen->defaultScreen)/8;
 	newScreen->maxTextCount = 2;
 	newScreen->text = (text_t**)calloc(newScreen->maxTextCount, sizeof(text_t*));
@@ -82,6 +87,7 @@ void closeScreen(screen_t *screen){
 	closeMouse(screen->mouse);
 	closeKeyboard(screen->keyboard);
 	free(screen->buttons);
+	XFreeGC(screen->display, screen->gc);
 	XCloseDisplay(screen->display);
 	free(screen);
 	screen = NULL;
@@ -127,17 +133,16 @@ void addInput(input_t* input, screen_t *screen){
 }
 
 void handleInput(screen_t* screen){
-	XEvent newEvent;
-	XWindowAttributes windowAttributes;
-	XGetWindowAttributes(screen->display, screen->window, &windowAttributes);
-	XCheckWindowEvent(screen->display, screen->window, ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask, &newEvent);
-	if(newEvent.type == Expose){
+	XEvent *newEvent = malloc(sizeof(XEvent));
+	XCheckWindowEvent(screen->display, screen->window, ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask, newEvent);
+	if(newEvent->type == Expose){
 		screen->exposed = true;
 	}
 	if(screen->exposed){
-		updateMouse(screen->mouse, &newEvent);
-		updateKeyboard(screen->keyboard, &newEvent);
+		updateMouse(screen->mouse, newEvent);
+		updateKeyboard(screen->keyboard, newEvent);
 	}
+	free(newEvent);
 	for(int i = 0; i < screen->maxButtonCount; i++){
 		if(screen->buttons[i] &&
 			screen->buttons[i]->x<=screen->mouse->x &&
@@ -191,13 +196,19 @@ void renderTextToScreen(text_t *text, screen_t *screen){
 			rerender = false;
 			break;
 		}
-	if(rerender)
+	if(rerender){
+		if(text->ximage){
+			XDestroyImage(text->ximage);
+			text->ximage = NULL;
+		}
 		renderText(text);
-	GC gc = XCreateGC(screen->display, screen->window, screen->defaultScreen, NULL);
-	XImage *image = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), text->bpp*8, ZPixmap, 0, text->textbuffer, text->byteWidth/text->bpp, text->fontSize*8, 8, 0);
-	image->bits_per_pixel = text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-	image->bytes_per_line = text->byteWidth;
-	XPutImage(screen->display, screen->window, gc, image, 0, 0, text->x, text->y, text->byteWidth/text->bpp, text->fontSize*8);
+	}
+	if(text->ximage == NULL){
+		text->ximage = XCreateImage(screen->display, screen->visual, text->bpp*8, ZPixmap, 0, (char*)text->textbuffer, text->byteWidth/text->bpp, text->fontSize*8, 8, 0);
+		text->ximage->bits_per_pixel = text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
+		text->ximage->bytes_per_line = text->byteWidth;
+	}
+	XPutImage(screen->display, screen->window, screen->gc, text->ximage, 0, 0, text->x, text->y, text->byteWidth/text->bpp, text->fontSize*8);
 }
 
 void renderButtonToScreen(button_t *button, screen_t *screen){
@@ -213,13 +224,19 @@ void renderButtonToScreen(button_t *button, screen_t *screen){
 			rerender = false;
 			break;
 		}
-	if(rerender)
+	if(rerender){
+		if(button->ximage){
+			XDestroyImage(button->ximage);
+			button->ximage = NULL;
+		}
 		renderButton(button);
-	GC gc = XCreateGC(screen->display, screen->window, screen->defaultScreen, NULL);
-	XImage *image = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), button->bpp*8, ZPixmap, 0, button->buttonbuffer, button->byteWidth/button->bpp, button->size*10, 8, 0);
-	image->bits_per_pixel = button->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-	image->bytes_per_line = button->byteWidth;
-	XPutImage(screen->display, screen->window, gc, image, 0, 0, button->x, button->y, button->byteWidth/button->bpp, button->size*10);
+	}
+	if(button->ximage == NULL){
+		button->ximage = XCreateImage(screen->display, screen->visual, button->bpp*8, ZPixmap, 0, button->buttonbuffer, button->byteWidth/button->bpp, button->size*10, 8, 0);
+		button->ximage->bits_per_pixel = button->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
+		button->ximage->bytes_per_line = button->byteWidth;
+	}
+	XPutImage(screen->display, screen->window, screen->gc, button->ximage, 0, 0, button->x, button->y, button->byteWidth/button->bpp, button->size*10);
 }
 
 void renderInputToScreen(input_t *input, screen_t *screen){
@@ -235,13 +252,19 @@ void renderInputToScreen(input_t *input, screen_t *screen){
 			rerender = false;
 			break;
 		}
-	if(rerender)
+	if(rerender){
+		if(input->ximage){
+			XDestroyImage(input->ximage);
+			input->ximage = NULL;
+		}
 		renderInput(input);
-	GC gc = XCreateGC(screen->display, screen->window, screen->defaultScreen, NULL);
-	XImage *image = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), input->text->bpp*8, ZPixmap, 0, input->text->textbuffer, input->text->byteWidth/input->text->bpp, input->text->fontSize*8, 8, 0);
-	image->bits_per_pixel = input->text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-	image->bytes_per_line = input->text->byteWidth;
-	XPutImage(screen->display, screen->window, gc, image, 0, 0, input->x, input->y, input->text->byteWidth/input->text->bpp, input->text->fontSize*8);
+	}
+	if(input->ximage == NULL){
+		input->ximage = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), input->text->bpp*8, ZPixmap, 0, (char*)input->text->textbuffer, input->text->byteWidth/input->text->bpp, input->text->fontSize*8, 8, 0);
+		input->ximage->bits_per_pixel = input->text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
+		input->ximage->bytes_per_line = input->text->byteWidth;
+	}
+	XPutImage(screen->display, screen->window, screen->gc, input->ximage, 0, 0, input->x, input->y, input->text->byteWidth/input->text->bpp, input->text->fontSize*8);
 }
 
 void renderScreen(screen_t *screen){

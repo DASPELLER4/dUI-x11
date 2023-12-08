@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <X11/Xutil.h>
 
 #include "text.h"
 
@@ -14,6 +15,7 @@
 
 typedef struct buttonStruct{
 	char *buttonbuffer;
+	XImage *ximage;
 	char currBorderColor;
 	text_t *text;
 	void (*onClick)();
@@ -51,7 +53,10 @@ button_t *createButtonElement(int x, int y, char *text, int size, uint8_t fg[3],
 
 void deleteButtonElement(button_t *button){
 	deleteTextElement(button->text);
-	free(button->buttonbuffer);
+	if(button->ximage)
+		XDestroyImage(button->ximage);
+	else
+		free(button->buttonbuffer);
 	free(button);
 	button = NULL;
 }

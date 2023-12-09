@@ -26,6 +26,7 @@ typedef struct{
 	int y;
 	int byteWidth;
 	int bpp;
+	void (*onClick)();
 } text_t;
 
 const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
@@ -285,62 +286,26 @@ const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc}};
 
-text_t *createTextElement(int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp);
-void deleteTextElement(text_t *text);
-void setTextText(text_t *textElem, char *text);
-void regenerateTextBuffer(text_t *text);
-void renderText(text_t* text);
-
-text_t *createTextElement(int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
-	text_t *newText = (text_t*)calloc(sizeof(text_t),1);
-	newText->x = x;
-	newText->y = y;
-	newText->bpp = bpp;
-	newText->visible = true;
-	newText->fontSize = fontSize;
-	newText->fgColor = (char*)malloc(bpp);
-	newText->bgColor = (char*)malloc(bpp);
+void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
+	returnText->x = x;
+	returnText->y = y;
+	returnText->bpp = bpp;
+	returnText->visible = true;
+	returnText->fontSize = fontSize;
+	returnText->fgColor = (char*)malloc(bpp);
+	returnText->bgColor = (char*)malloc(bpp);
 	for(int i = 0; i < bpp; i++){
-		newText->fgColor[i] = fg[2-i];
-		newText->bgColor[i] = bg[2-i];
+		returnText->fgColor[i] = fg[2-i];
+		returnText->bgColor[i] = bg[2-i];
 	}
-	newText->kerning = fontSize;
-	newText->text = (char*)malloc(strlen(text)+1);
-	memcpy(newText->text, text, strlen(text)+1);
-	newText->byteWidth = newText->kerning*strlen(text)*bpp+strlen(text)*bpp*fontSize*8;
-	newText->textbuffer = (uint8_t*)calloc(newText->byteWidth*8*fontSize,1);
-	return newText;
+	returnText->kerning = fontSize;
+	returnText->text = (char*)malloc(strlen(text)+1);
+	memcpy(returnText->text, text, strlen(text)+1);
+	returnText->byteWidth = returnText->kerning*strlen(text)*bpp+strlen(text)*bpp*fontSize*8;
+	returnText->textbuffer = (uint8_t*)calloc(returnText->byteWidth*8*fontSize,1);
 }
 
-void deleteTextElement(text_t *text){
-	text->visible = false;
-	if(text->ximage)
-		XDestroyImage(text->ximage);
-	else
-		free(text->textbuffer);
-	free(text->text);
-	free(text->fgColor);
-	free(text->bgColor);
-	free(text);
-	text = NULL;
-}
-
-void setTextText(text_t *textElem, char *text){
-	free(textElem->text);
-	free(textElem->textbuffer);
-	textElem->text = (char*)malloc(strlen(text)+1);
-	memcpy(textElem->text, text, strlen(text)+1);
-	textElem->byteWidth = textElem->kerning*strlen(text)*textElem->bpp+strlen(text)*textElem->bpp*textElem->fontSize*8;
-	textElem->textbuffer = (uint8_t*)calloc(textElem->byteWidth*8*textElem->fontSize,1);
-}
-
-void regenerateTextBuffer(text_t *text){
-	free(text->textbuffer);
-	text->byteWidth = text->kerning*strlen(text->text)*text->bpp+strlen(text->text)*text->bpp*text->fontSize*8;
-	text->textbuffer = (uint8_t*)calloc(text->byteWidth*8*text->fontSize,1);
-}
-
-void renderText(text_t* text){
+void _renderText(text_t* text){
 	for(int u = 0; u < text->byteWidth*text->fontSize*8; u+=text->bpp)
 		memcpy(text->textbuffer+u, text->bgColor, text->bpp);
 	for(uint8_t i = 0; text->text[i]; i++){ // each character

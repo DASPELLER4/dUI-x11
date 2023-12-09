@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <X11/Xlib.h>
 
+#include "uielement.h"
 #include "button.h"
 #include "text.h"
 #include "mouse.h"
@@ -27,20 +28,15 @@ typedef struct{
 	int bpp;
 	keyboard_t *keyboard;
 	mouse_t *mouse;
-	text_t **text;
-	button_t **buttons;
-	input_t **inputs;
-	int textCount;
-	int buttonCount;
-	int inputCount;
-	int maxTextCount;
-	int maxButtonCount;
-	int maxInputCount;
+	uiElement_t **elements;
+	int maxElementCount;
 	bool exposed;
 } screen_t;
 
 // TODO:
-// add ximage to each UI element (see renderInput)
+// addElement
+// renderElementToScreen
+// fix handleInput
 
 screen_t *createScreen(int x, int y, int width, int height){
 	screen_t *newScreen = (screen_t*)calloc(1,sizeof(screen_t));
@@ -59,77 +55,42 @@ screen_t *createScreen(int x, int y, int width, int height){
 	newScreen->visual = DefaultVisual(newScreen->display, newScreen->defaultScreen);
 	newScreen->gc = XCreateGC(newScreen->display, newScreen->window, newScreen->defaultScreen, NULL);
 	newScreen->bpp = DefaultDepth(newScreen->display, newScreen->defaultScreen)/8;
-	newScreen->maxTextCount = 2;
-	newScreen->text = (text_t**)calloc(newScreen->maxTextCount, sizeof(text_t*));
-	newScreen->maxButtonCount = 2;
-	newScreen->buttons = (button_t**)calloc(newScreen->maxButtonCount, sizeof(button_t*));
-	newScreen->maxInputCount = 2;
-	newScreen->inputs = (input_t**)calloc(newScreen->maxInputCount, sizeof(input_t*));
+	newScreen->maxElementCount = 2;
+	newScreen->elements = (uiElement_t**)calloc(newScreen->maxElementCount, sizeof(uiElement_t*));
 	return newScreen;
 }
 
 void closeScreen(screen_t *screen){
-	for(int i = 0; i < screen->maxTextCount; i++){
-		if(screen->text[i]){
-			deleteTextElement(screen->text[i]);
+	for(int i = 0; i < screen->maxElementCount; i++){
+		if(screen->elements[i]){
+			deleteElement(screen->elements[i]);
 		}
 	}
+	free(screen->elements);
 	free(screen->text);
-	for(int i = 0; i < screen->maxButtonCount; i++)
-		if(screen->buttons[i])
-			deleteButtonElement(screen->buttons[i]);
-	for(int i = 0; i < screen->maxInputCount; i++){
-		if(screen->inputs[i]){
-			deleteInputElement(screen->inputs[i]);
-		}
-	}
-	free(screen->inputs);
 	closeMouse(screen->mouse);
 	closeKeyboard(screen->keyboard);
-	free(screen->buttons);
 	XFreeGC(screen->display, screen->gc);
 	XCloseDisplay(screen->display);
 	free(screen);
 	screen = NULL;
 }
 
-void addText(text_t* text, screen_t *screen){
-	if(screen->textCount >= screen->maxTextCount){
-		screen->maxTextCount *= 2;
-		screen->text = (text_t**)realloc(screen->text, screen->maxTextCount*sizeof(text_t*));
-		for(int i = screen->textCount; i < screen->maxTextCount; i++)
-			screen->text[i] = NULL;
+void addElement(uiElement_t *element, screen_t *screen){
+	int freeSpace = -1;
+	for(int i = 0; i < screen->maxElements; i++)
+		if(screen->elements[i] == NULL){
+			freeSpace = i;
+			break;
+		}
+	if(freeSpace == -1){
+		freeSpace = screen->maxElements;
+		screen->maxElements *= 2;
+		screen->elements = realloc(screen->elements, sizeof(uiElement_t*)*screen->maxElements);
+		for(int i = screen->maxElements/2; i < screen->maxElements; i++)
+			screen->elements[i] = NULL;
 	}
-	int newTextLocation = -1;
-	while(screen->text[++newTextLocation]);
-	screen->text[newTextLocation] = text;
-	screen->textCount++;
-}
-
-void addButton(button_t* button, screen_t *screen){
-	if(screen->buttonCount >= screen->maxButtonCount){
-		screen->maxButtonCount *= 2;
-		screen->buttons = (button_t**)realloc(screen->buttons, screen->maxButtonCount*sizeof(button_t*));
-		for(int i = screen->buttonCount; i < screen->maxButtonCount; i++)
-			screen->buttons[i] = NULL;
-	}
-	int newButtonLocation = -1;
-	while(screen->buttons[++newButtonLocation]);
-	screen->buttons[newButtonLocation] = button;
-	screen->buttonCount++;
-}
-
-void addInput(input_t* input, screen_t *screen){
-	if(screen->inputCount >= screen->maxInputCount){
-		screen->maxInputCount *= 2;
-		screen->inputs = (input_t**)realloc(screen->inputs, screen->maxInputCount*sizeof(input_t*));
-		for(int i = screen->inputCount; i < screen->maxInputCount; i++)
-			screen->inputs[i] = NULL;
-	}
-	int newInputLocation = -1;
-	while(screen->inputs[++newInputLocation]);
-	screen->inputs[newInputLocation] = input;
-	screen->inputCount++;
+	screen->elements[freeSpace] = element;
 }
 
 void handleInput(screen_t* screen){
@@ -143,46 +104,14 @@ void handleInput(screen_t* screen){
 		updateKeyboard(screen->keyboard, newEvent);
 	}
 	free(newEvent);
-	for(int i = 0; i < screen->maxButtonCount; i++){
-		if(screen->buttons[i] &&
-			screen->buttons[i]->x<=screen->mouse->x &&
-			screen->buttons[i]->x+screen->buttons[i]->byteWidth/screen->buttons[i]->bpp>=screen->mouse->x &&
-			screen->buttons[i]->y<=screen->mouse->y &&
-			screen->buttons[i]->y+screen->buttons[i]->size*10>=screen->mouse->y){
-			if(!screen->mouse->justClicked)
-				hoverButton(screen->buttons[i]);
-			else
-				clickButton(screen->buttons[i]);
-		} else if(screen->buttons[i] && screen->buttons[i]->currBorderColor != regularBorder)
-				resetButton(screen->buttons[i]);
+	// REMEMBER TO ADD WIDTH AND HEIGHT TO ALL ELEMENTS
+	for(int i = 0; i < screen->maxElementCount; i++){
+		if(screen->elements[i] == NULL)
+			break;
+		switch(screen->elements[])
 	}
-	input_t *focused = NULL;
-	for(int i = 0; i < screen->maxInputCount; i++){
-		if(screen->inputs[i] &&
-			screen->inputs[i]->x<=screen->mouse->x &&
-			screen->inputs[i]->x+screen->inputs[i]->text->byteWidth/screen->inputs[i]->text->bpp>=screen->mouse->x &&
-			screen->inputs[i]->y<=screen->mouse->y &&
-			screen->inputs[i]->y+screen->inputs[i]->text->fontSize*8>=screen->mouse->y){
-			if(screen->mouse->justClicked){
-				screen->inputs[i]->focused = true;
-				renderInput(screen->inputs[i]);
-			}
-		} else if(screen->mouse->justClicked && screen->inputs[i] && screen->inputs[i]->focused){
-			screen->inputs[i]->focused = false;
-			renderInput(screen->inputs[i]);
-		}
-	}
-	if(screen->keyboard->keypressed)
-		for(int i = 0; i < screen->maxInputCount; i++){
-			if(screen->inputs[i] && screen->inputs[i]->focused){
-				focused = screen->inputs[i];
-				break;
-			}
-		}
-	if(focused)
-		addCharacterToInput(screen->keyboard->keypressed, focused);
 }
-
+/*
 void renderTextToScreen(text_t *text, screen_t *screen){
 	if(!text->visible || !screen->exposed)
 		return;
@@ -266,7 +195,7 @@ void renderInputToScreen(input_t *input, screen_t *screen){
 	}
 	XPutImage(screen->display, screen->window, screen->gc, input->ximage, 0, 0, input->x, input->y, input->text->byteWidth/input->text->bpp, input->text->fontSize*8);
 }
-
+*/
 void renderScreen(screen_t *screen){
 	handleInput(screen);
 	for(int i = 0; i < screen->maxTextCount; i++){

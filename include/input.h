@@ -16,30 +16,19 @@ typedef struct{
 	char *input;
 	char *tempText;
 	int maxInputLength;
-	text_t *text;
+	text_t text;
 	int width;
 	void (*onReturn)();
 	void (*onKeyPress)();
+	void (*onClick)();
 	bool focused;
 	bool visible;
 	XImage *ximage;
 	int x;
 	int y;
+	int width;
+	int height;
 } input_t;
-
-input_t *_createInputElement(int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
-        input_t *newInput = (input_t*)calloc(1,sizeof(input_t));
-        newInput->visible = true;
-        newInput->x = x;
-        newInput->y = y;
-        newInput->width = width;
-        newInput->tempText = calloc(width+1,1);
-        memset(newInput->tempText, 0x20, width);
-        newInput->maxInputLength = 2;
-        newInput->input = calloc(newInput->maxInputLength, 1);
-        newInput->text = createTextElement(x, y, newInput->tempText, fontSize, fg, bg, bpp);
-        return newInput;
-}
 
 void _writeInputElement(input_t* inputReturn ,int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
 	inputReturn->visible = true;
@@ -50,23 +39,34 @@ void _writeInputElement(input_t* inputReturn ,int x, int y, int width, int fontS
 	memset(inputReturn->tempText, 0x20, width);
 	inputReturn->maxInputLength = 2;
 	inputReturn->input = calloc(newInput->maxInputLength, 1);
-	inputReturn->text = _createTextElement(x, y, newInput->tempText, fontSize, fg, bg, bpp);
+	_writeTextElement(&inputReturn->text, 0, 0, inputReturn->tempText, fontSize, fg, bg, bpp);
 	return newInput;
 }
 
-void renderInput(input_t *input){
+void _renderInput(input_t *input){
 	memset(input->tempText, ' ', input->width+1);
 	input->tempText[input->width] = 0;
 	int l = strlen(input->input);
 	strncpy(input->tempText, input->input, MIN(l, input->width));
 	if(input->cursor < input->width && input->focused)
 		input->tempText[input->cursor] = '|';
-	setTextText(input->text, input->tempText);
-	regenerateTextBuffer(input->text);
-	renderText(input->text);
+	uint8_t fg[3],bg[3];
+	for(int i = 0; i < input->text.bpp; i++){
+		fg[i] = input->text.fgColor[2-i];
+		bg[i] = input->text.bgColor[2-i];
+	}
+	free(input->text.fgColor);
+	free(input->text.bgColor);
+	free(input->text.text);
+	if(input->ximage)
+		XDestroyImage(input->ximage);
+	else
+		free(input->text.textbuffer);
+	_writeTextElement(&input->text, 0, 0, input->tempText, input->text.fontSize, fg, bg, input->text.bpp);
+	_renderText(&input->text);
 }
 
-void backspaceInput(input_t *input){
+void _backspaceInput(input_t *input){
 	int a = 0;
 	if(input->input[input->cursor] == 0){
 		input->cursor--;
@@ -80,7 +80,7 @@ void backspaceInput(input_t *input){
 	renderInput(input);
 }
 
-void addCharacterToInput(unsigned char c, input_t *input){
+void _addCharacterToInput(unsigned char c, input_t *input){
 	if(!c)
 		return;
 	switch(c){

@@ -17,7 +17,7 @@ typedef struct buttonStruct{
 	char *buttonbuffer;
 	XImage *ximage;
 	char currBorderColor;
-	text_t *text;
+	text_t text;
 	void (*onClick)();
 	bool visible;
 	int bpp;
@@ -27,22 +27,13 @@ typedef struct buttonStruct{
 	int size;
 } button_t;
 
-button_t *createButtonElement(int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], void (*onClick)(), int bpp);
-void deleteButtonElement(button_t *button);
-void renderButton(button_t* button);
-void regenerateButtonBuffer(button_t *button);
-void setButtonText(button_t *button, char *text);
-void hoverButton(button_t* button);
-void clickButton(button_t* button);
-void resetButton(button_t* button);
-
 button_t *createButtonElement(int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], void (*onClick)(), int bpp){
 	button_t *newButton = (button_t*)calloc(sizeof(button_t),1);
 	newButton->bpp = bpp;
 	newButton->x = x;
 	newButton->y = y;
 	newButton->visible = true;
-	newButton->text = createTextElement(0, 0, text, size, fg, bg, bpp);
+	_writeTextElement(0, 0, text, size, fg, bg, bpp);
 	newButton->onClick = onClick;
 	newButton->currBorderColor = regularBorder;
 	newButton->size = size;

@@ -34,7 +34,6 @@ typedef struct{
 } screen_t;
 
 // TODO:
-// addElement
 // renderElementToScreen
 // fix handleInput
 
@@ -67,7 +66,6 @@ void closeScreen(screen_t *screen){
 		}
 	}
 	free(screen->elements);
-	free(screen->text);
 	closeMouse(screen->mouse);
 	closeKeyboard(screen->keyboard);
 	XFreeGC(screen->display, screen->gc);
@@ -78,16 +76,16 @@ void closeScreen(screen_t *screen){
 
 void addElement(uiElement_t *element, screen_t *screen){
 	int freeSpace = -1;
-	for(int i = 0; i < screen->maxElements; i++)
+	for(int i = 0; i < screen->maxElementCount; i++)
 		if(screen->elements[i] == NULL){
 			freeSpace = i;
 			break;
 		}
 	if(freeSpace == -1){
-		freeSpace = screen->maxElements;
-		screen->maxElements *= 2;
-		screen->elements = realloc(screen->elements, sizeof(uiElement_t*)*screen->maxElements);
-		for(int i = screen->maxElements/2; i < screen->maxElements; i++)
+		freeSpace = screen->maxElementCount;
+		screen->maxElementCount *= 2;
+		screen->elements = realloc(screen->elements, sizeof(uiElement_t*)*screen->maxElementCount);
+		for(int i = screen->maxElementCount/2; i < screen->maxElementCount; i++)
 			screen->elements[i] = NULL;
 	}
 	screen->elements[freeSpace] = element;
@@ -105,12 +103,23 @@ void handleInput(screen_t* screen){
 	}
 	free(newEvent);
 	// REMEMBER TO ADD WIDTH AND HEIGHT TO ALL ELEMENTS
+	// done, pxwidth and pxheight
 	for(int i = 0; i < screen->maxElementCount; i++){
 		if(screen->elements[i] == NULL)
 			break;
-		switch(screen->elements[])
+		switch(screen->elements[i]->type){
+			case InputElement:
+				break;
+			case LabelElement:
+				break;
+			case ButtonElement:
+				break;
+		}
 	}
 }
+
+// commented out cause i might return
+
 /*
 void renderTextToScreen(text_t *text, screen_t *screen){
 	if(!text->visible || !screen->exposed)
@@ -196,22 +205,17 @@ void renderInputToScreen(input_t *input, screen_t *screen){
 	XPutImage(screen->display, screen->window, screen->gc, input->ximage, 0, 0, input->x, input->y, input->text->byteWidth/input->text->bpp, input->text->fontSize*8);
 }
 */
+
+void renderElementToScreen(uiElement_t *element, screen_t *screen){
+	this //code exists only to create an error so i know to revisit this
+}
+
 void renderScreen(screen_t *screen){
 	handleInput(screen);
-	for(int i = 0; i < screen->maxTextCount; i++){
-		if(screen->text[i]){
-			renderTextToScreen(screen->text[i], screen);
-		}
-	}
-	for(int i = 0; i < screen->maxButtonCount; i++){
-		if(screen->buttons[i]){
-			renderButtonToScreen(screen->buttons[i], screen);
-		}
-	}
-	for(int i = 0; i < screen->maxInputCount; i++){
-		if(screen->inputs[i]){
-			renderInputToScreen(screen->inputs[i], screen);
-		}
+	for(int i = 0; i < screen->maxElementCount; i++){
+		if(!screen->elements[i])
+			continue;
+		renderElementToScreen(screen->elements[i], screen);
 	}
 }
 

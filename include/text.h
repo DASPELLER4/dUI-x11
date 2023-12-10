@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xlib.h>
 
 #include "color_macros.h"
 
@@ -14,6 +15,7 @@
 #define TEXT_L 4
 
 typedef struct{
+	int type;
 	char *fgColor;
 	char *bgColor;
 	int fontSize;
@@ -27,6 +29,9 @@ typedef struct{
 	int byteWidth;
 	int bpp;
 	void (*onClick)();
+	int pxwidth;
+	int pxheight;
+	long subpixelOrder;
 } text_t;
 
 const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
@@ -286,28 +291,64 @@ const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc}};
 
-void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
+void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){
+	XVisualInfo visualTemplate;
+	XVisualInfo *visualInfo;
+	visualTemplate.screen = DefaultScreen(display);
+	int number;
+	visualInfo = XGetVisualInfo(display, VisualScreenMask, &visualTemplate, &number);
+	returnText->subpixelOrder = (*visualInfo).red_mask == 0xFF0000 ? 0 : // RGB
+                         (*visualInfo).red_mask == 0x00FF00 ? 1 : // GBR
+                         (*visualInfo).red_mask == 0x0000FF ? 2 : -1; // BGR
+	XFree(visualInfo);
+	returnText->bpp = DisplayPlanes(display, DefaultScreen(display));
 	returnText->x = x;
 	returnText->y = y;
-	returnText->bpp = bpp;
 	returnText->visible = true;
 	returnText->fontSize = fontSize;
-	returnText->fgColor = (char*)malloc(bpp);
-	returnText->bgColor = (char*)malloc(bpp);
-	for(int i = 0; i < bpp; i++){
-		returnText->fgColor[i] = fg[2-i];
-		returnText->bgColor[i] = bg[2-i];
-	}
+	returnText->fgColor = (char*)malloc(returnText->bpp);
+	returnText->bgColor = (char*)malloc(returnText->bpp);
+	memcpy(returnText->fgColor, fg, returnText->bpp);
+	memcpy(returnText->bgColor, bg, returnText->bpp);
 	returnText->kerning = fontSize;
 	returnText->text = (char*)malloc(strlen(text)+1);
 	memcpy(returnText->text, text, strlen(text)+1);
-	returnText->byteWidth = returnText->kerning*strlen(text)*bpp+strlen(text)*bpp*fontSize*8;
+	returnText->byteWidth = returnText->kerning*strlen(text)*returnText->bpp+strlen(text)*returnText->bpp*fontSize*8;
 	returnText->textbuffer = (uint8_t*)calloc(returnText->byteWidth*8*fontSize,1);
+	returnText->pxwidth = returnText->byteWidth/returnText->bpp;
+	returnText->pxheight = fontSize*8;
 }
 
 void _renderText(text_t* text){
+	uint8_t *orderFg = (uint8_t*)malloc(text->bpp);
+	uint8_t *orderBg = (uint8_t*)malloc(text->bpp);
+	switch(text->subpixelOrder){
+		case 0:
+			memcpy(orderFg, text->fgColor, text->bpp);
+			memcpy(orderBg, text->bgColor, text->bpp);
+			break;
+		case 1:
+			orderFg[0] = text->fgColor[1];
+			orderFg[1] = text->fgColor[2];
+			orderFg[2] = text->fgColor[0];
+			orderBg[0] = text->bgColor[1];
+			orderBg[1] = text->bgColor[2];
+			orderBg[2] = text->bgColor[0];
+			break;
+		case 2:
+			for(int i = 0; i < text->bpp; i++){
+				orderFg[2-i] = text->fgColor[i];
+				orderBg[2-i] = text->bgColor[i];
+			}
+			break;
+		default:
+			fprintf(stderr, "Couldn't determine subpixels for display, defaulting to RGB");
+			memcpy(orderFg, text->fgColor, text->bpp);
+			memcpy(orderBg, text->bgColor, text->bpp);
+			break;
+	}
 	for(int u = 0; u < text->byteWidth*text->fontSize*8; u+=text->bpp)
-		memcpy(text->textbuffer+u, text->bgColor, text->bpp);
+		memcpy(text->textbuffer+u, orderBg, text->bpp);
 	for(uint8_t i = 0; text->text[i]; i++){ // each character
 		for(int y = 0; y<8; y++){ // each row of the character
 			for(int z = 0; z < text->fontSize; z++){ // how many times to draw that row
@@ -316,11 +357,13 @@ void _renderText(text_t* text){
 					//printf("%d", (letters[(text->text[i]&0x1F)-1][y]>>(7-j))&0x1);
 					if((ascii[(unsigned char)text->text[i]][y]>>(7-j))&0x1) // if the current bit is a 1
 						for(int u = 0; u < text->fontSize; u++)
-							memcpy(text->textbuffer+(j*text->fontSize+u)*text->bpp+pos, text->fgColor, text->bpp);
+							memcpy(text->textbuffer+(j*text->fontSize+u)*text->bpp+pos, orderFg, text->bpp);
 				}
 			}
 		}
 	}
+	free(orderFg);
+	free(orderBg);
 }
 
 #endif

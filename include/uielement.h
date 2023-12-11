@@ -2,19 +2,19 @@
 #define UIELEMENT_H
 
 #include <stdint.h>
+#include <X11/Xlib.h>
 
 #include "input.h"
 #include "button.h"
 #include "text.h"
 
-// buttons havent yet been done!!!
-
-// setText
+// setText // remember the damn ximage
 
 typedef enum{
 	InputElement,
 	ButtonElement,
-	LabelElement
+	LabelElement,
+	GenericElement // currently, this means nothing, it just might be used later
 } elementType_t;
 
 typedef union{
@@ -22,6 +22,15 @@ typedef union{
 	input_t input;
 	text_t text;
 	button_t button;
+	struct{
+		int type;
+		XImage *ximage;
+		int x;
+		int y;
+		int pxwidth;
+		int pxheight;
+		bool visible;
+	} generic; // makes it nice :3
 } uiElement_t;
 
 void deleteElement(uiElement_t *element){

@@ -13,22 +13,22 @@
 
 typedef struct{
 	int type;
-	int cursor;
-	char *input;
-	char *tempText;
-	int maxInputLength;
-	text_t *text;
-	int width;
-	void (*onReturn)();
-	void (*onKeyPress)(char);
-	void (*onClick)();
-	bool focused;
-	bool visible;
 	XImage *ximage;
 	int x;
 	int y;
 	int pxwidth;
 	int pxheight;
+	bool visible;
+	void (*onClick)();
+	void (*onReturn)();
+	void (*onKeyPress)(char);
+	text_t *text;
+	char *input;
+	char *tempText;
+	int width;
+	int maxInputLength;
+	bool focused;
+	int cursor;
 } input_t;
 
 void _writeInputElement(input_t* inputReturn, int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){

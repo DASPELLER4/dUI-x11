@@ -207,16 +207,48 @@ void renderInputToScreen(input_t *input, screen_t *screen){
 */
 
 void renderElementToScreen(uiElement_t *element, screen_t *screen){
-	this //code exists only to create an error so i know to revisit this
+	if(!screen->exposed && element->generic.visible)
+		return;
+	int bpp;
+	char *buffer;
+	switch(element->type){ // should probably do this correctly :3
+		case InputElement:
+			bpp = element->input.text->bpp;
+			buffer = element->input.text->textbuffer;
+			break;
+		case ButtonElement:
+			bpp = element->button.text->bpp;
+			buffer = element->button.buttonbuffer;
+			break;
+		case LabelElement:
+			bpp = element->text.bpp;
+			buffer = element->text.textbuffer;
+			break;
+		default:
+			fprintf(stderr,"Cannot render uiElement @%ld (Ui Element is of unrecognized type)\n", (long)element);
+			return;
+	}
+	if(element->generic.ximage == NULL){
+		element->generic.ximage = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), bpp*8, ZPixmap, 0, buffer, element->generic.pxwidth, element->generic.pxheight, 8, 0);
+		printf("x - %d\ny - %d\npxwidth - %d\npxheight - %d\n*ximage - %ld\nbpp - %d\nfirst color - %x\n", element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight, (long)element->generic.ximage, bpp, *buffer);
+		if(element->generic.ximage == NULL){ // welp we tried
+			fprintf(stderr,"Couldn't create XImage for uiElement @%ld\n", (long)element);
+			return;
+		}
+		//element->generic.ximage->bits_per_pixel = bpp*8;
+		//element->generic.ximage->bytes_per_line = bpp*element->generic.pxwidth;
+	}
+	XPutImage(screen->display, screen->window, screen->gc, element->generic.ximage, 0, 0, element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight);
 }
 
 void renderScreen(screen_t *screen){
 	handleInput(screen);
 	for(int i = 0; i < screen->maxElementCount; i++){
-		if(!screen->elements[i])
+		if(screen->elements[i] == NULL)
 			continue;
 		renderElementToScreen(screen->elements[i], screen);
 	}
+	XFlush(screen->display);
 }
 
 #endif

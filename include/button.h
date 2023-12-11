@@ -16,19 +16,19 @@
 
 typedef struct buttonStruct{
 	int type;
-	char *buttonbuffer;
 	XImage *ximage;
-	char currBorderColor;
-	text_t *text;
-	void (*onClick)();
-	bool visible;
-	int bpp;
 	int x;
 	int y;
-	int byteWidth;
-	int size;
 	int pxwidth;
 	int pxheight;
+	bool visible;
+	void (*onClick)();
+	char *buttonbuffer;
+	char currBorderColor;
+	text_t *text;
+	int bpp;
+	int byteWidth;
+	int size;
 } button_t;
 
 void _writeButtonElement(button_t *returnButton, int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], Display *display){

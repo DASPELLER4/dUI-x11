@@ -16,21 +16,21 @@
 
 typedef struct{
 	int type;
+	XImage *ximage;
+	int x;
+	int y;
+	int pxwidth;
+	int pxheight;
+	bool visible;
+	void (*onClick)();
 	char *fgColor;
 	char *bgColor;
 	int fontSize;
 	int kerning;
 	char *text;
 	uint8_t *textbuffer;
-	XImage *ximage;
-	bool visible;
-	int x;
-	int y;
 	int byteWidth;
 	int bpp;
-	void (*onClick)();
-	int pxwidth;
-	int pxheight;
 	long subpixelOrder;
 } text_t;
 

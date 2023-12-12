@@ -10,7 +10,7 @@
 #include <X11/Xos.h>
 
 typedef struct{
-	unsigned char keypressed;
+	char keypressed;
 } keyboard_t;
 
 keyboard_t *getKeyboard(){

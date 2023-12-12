@@ -1,4 +1,4 @@
-#ifndef SCREEN_Hi
+#ifndef SCREEN_H
 #define SCREEN_H
 
 #include <stdbool.h>
@@ -31,11 +31,10 @@ typedef struct{
 	uiElement_t **elements;
 	int maxElementCount;
 	bool exposed;
+	bool madevisible;
 } screen_t;
 
 // TODO:
-// renderElementToScreen
-// fix handleInput
 
 screen_t *createScreen(int x, int y, int width, int height){
 	screen_t *newScreen = (screen_t*)calloc(1,sizeof(screen_t));
@@ -46,9 +45,9 @@ screen_t *createScreen(int x, int y, int width, int height){
 		return NULL;
 	}
 	newScreen->defaultScreen = DefaultScreen(newScreen->display);
-	newScreen->window = XCreateSimpleWindow(newScreen->display, RootWindow(newScreen->display, newScreen->defaultScreen), x, y, width, height, 1, BlackPixel(newScreen->display, newScreen->defaultScreen), BlackPixel(newScreen->display, newScreen->defaultScreen));
+	newScreen->window = XCreateSimpleWindow(newScreen->display, RootWindow(newScreen->display, newScreen->defaultScreen), x, y, width, height, 0, WhitePixel(newScreen->display, newScreen->defaultScreen), BlackPixel(newScreen->display, newScreen->defaultScreen));
 	XMapWindow(newScreen->display, newScreen->window);
-	XSelectInput(newScreen->display, newScreen->window, ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask);
+	XSelectInput(newScreen->display, newScreen->window, VisibilityChangeMask | ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask);
 	newScreen->mouse = getMouse();
 	newScreen->keyboard = getKeyboard();
 	newScreen->visual = DefaultVisual(newScreen->display, newScreen->defaultScreen);
@@ -92,119 +91,37 @@ void addElement(uiElement_t *element, screen_t *screen){
 }
 
 void handleInput(screen_t* screen){
-	XEvent *newEvent = malloc(sizeof(XEvent));
-	XCheckWindowEvent(screen->display, screen->window, ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask, newEvent);
+	XEvent *newEvent = calloc(1,sizeof(XEvent));
+	XCheckWindowEvent(screen->display, screen->window, VisibilityChangeMask | ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask, newEvent);
 	if(newEvent->type == Expose){
 		screen->exposed = true;
-	}
+	} else if(newEvent->type == VisibilityNotify)
+		screen->madevisible = true;
+	else
+		screen->madevisible = false;
 	if(screen->exposed){
 		updateMouse(screen->mouse, newEvent);
 		updateKeyboard(screen->keyboard, newEvent);
 	}
 	free(newEvent);
-	// REMEMBER TO ADD WIDTH AND HEIGHT TO ALL ELEMENTS
-	// done, pxwidth and pxheight
 	for(int i = 0; i < screen->maxElementCount; i++){
-		if(screen->elements[i] == NULL)
-			break;
-		switch(screen->elements[i]->type){
-			case InputElement:
-				break;
-			case LabelElement:
-				break;
-			case ButtonElement:
-				break;
-		}
+		if(screen->elements[i] == NULL || !screen->elements[i]->generic.visible)
+			continue;
+		keypressElement(screen->elements[i], screen->keyboard->keypressed);
+		if(screen->mouse->x <= screen->elements[i]->generic.x + screen->elements[i]->generic.pxwidth &&
+		   screen->mouse->x >= screen->elements[i]->generic.x &&
+		   screen->mouse->y >= screen->elements[i]->generic.y &&
+		   screen->mouse->y <= screen->elements[i]->generic.y + screen->elements[i]->generic.pxheight){
+			if(screen->mouse->justClicked)
+				clickElement(screen->elements[i]);
+			else
+				hoverElement(screen->elements[i]);
+		} else if(screen->elements[i]->generic.focused && screen->mouse->justClicked)
+			unfocusElement(screen->elements[i]);
+		else
+			nointeractElement(screen->elements[i]);
 	}
 }
-
-// commented out cause i might return
-
-/*
-void renderTextToScreen(text_t *text, screen_t *screen){
-	if(!text->visible || !screen->exposed)
-		return;
-	if(text->bpp != screen->bpp){
-		text->bpp = screen->bpp;
-		regenerateTextBuffer(text);
-	}
-	bool rerender = true;
-	for(int i = 0; i < text->byteWidth; i++)
-		if(text->textbuffer[i]){
-			rerender = false;
-			break;
-		}
-	if(rerender){
-		if(text->ximage){
-			XDestroyImage(text->ximage);
-			text->ximage = NULL;
-		}
-		renderText(text);
-	}
-	if(text->ximage == NULL){
-		text->ximage = XCreateImage(screen->display, screen->visual, text->bpp*8, ZPixmap, 0, (char*)text->textbuffer, text->byteWidth/text->bpp, text->fontSize*8, 8, 0);
-		text->ximage->bits_per_pixel = text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-		text->ximage->bytes_per_line = text->byteWidth;
-	}
-	XPutImage(screen->display, screen->window, screen->gc, text->ximage, 0, 0, text->x, text->y, text->byteWidth/text->bpp, text->fontSize*8);
-}
-
-void renderButtonToScreen(button_t *button, screen_t *screen){
-	if(!button->visible || !screen->exposed)
-		return;
-	if(button->bpp != screen->bpp){
-		button->bpp = screen->bpp;
-		regenerateButtonBuffer(button);
-	}
-	bool rerender = true;
-	for(int i = 0; i < button->byteWidth; i++)
-		if(button->buttonbuffer[i]){
-			rerender = false;
-			break;
-		}
-	if(rerender){
-		if(button->ximage){
-			XDestroyImage(button->ximage);
-			button->ximage = NULL;
-		}
-		renderButton(button);
-	}
-	if(button->ximage == NULL){
-		button->ximage = XCreateImage(screen->display, screen->visual, button->bpp*8, ZPixmap, 0, button->buttonbuffer, button->byteWidth/button->bpp, button->size*10, 8, 0);
-		button->ximage->bits_per_pixel = button->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-		button->ximage->bytes_per_line = button->byteWidth;
-	}
-	XPutImage(screen->display, screen->window, screen->gc, button->ximage, 0, 0, button->x, button->y, button->byteWidth/button->bpp, button->size*10);
-}
-
-void renderInputToScreen(input_t *input, screen_t *screen){
-	if(!input->visible || !screen->exposed)
-		return;
-	if(input->text->bpp != screen->bpp){
-		input->text->bpp = screen->bpp;
-		regenerateTextBuffer(input->text);
-	}
-	bool rerender = true;
-	for(int i = 0; i < input->text->byteWidth; i++)
-		if(input->text->textbuffer[i]){
-			rerender = false;
-			break;
-		}
-	if(rerender){
-		if(input->ximage){
-			XDestroyImage(input->ximage);
-			input->ximage = NULL;
-		}
-		renderInput(input);
-	}
-	if(input->ximage == NULL){
-		input->ximage = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), input->text->bpp*8, ZPixmap, 0, (char*)input->text->textbuffer, input->text->byteWidth/input->text->bpp, input->text->fontSize*8, 8, 0);
-		input->ximage->bits_per_pixel = input->text->bpp*8; // I wish i could justify this but i cant, XCreateImage seems to ignore the arguments its given
-		input->ximage->bytes_per_line = input->text->byteWidth;
-	}
-	XPutImage(screen->display, screen->window, screen->gc, input->ximage, 0, 0, input->x, input->y, input->text->byteWidth/input->text->bpp, input->text->fontSize*8);
-}
-*/
 
 void renderElementToScreen(uiElement_t *element, screen_t *screen){
 	if(!screen->exposed && element->generic.visible)
@@ -225,22 +142,23 @@ void renderElementToScreen(uiElement_t *element, screen_t *screen){
 			buffer = element->text.textbuffer;
 			break;
 		default:
-			fprintf(stderr,"Cannot render uiElement @%ld (Ui Element is of unrecognized type)\n", (long)element);
+			fprintf(stderr,"Cannot render uiElement @%lx (Ui Element is of unrecognized type)\n", (long)element);
 			return;
 	}
 	if(element->generic.ximage == NULL){
 		element->generic.ximage = XCreateImage(screen->display, DefaultVisual(screen->display, screen->defaultScreen), bpp*8, ZPixmap, 0, buffer, element->generic.pxwidth, element->generic.pxheight, 8, 0);
-		printf("x - %d\ny - %d\npxwidth - %d\npxheight - %d\n*ximage - %ld\nbpp - %d\nfirst color - %x\n", element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight, (long)element->generic.ximage, bpp, *buffer);
 		if(element->generic.ximage == NULL){ // welp we tried
-			fprintf(stderr,"Couldn't create XImage for uiElement @%ld\n", (long)element);
+			fprintf(stderr,"Couldn't create XImage for uiElement @%lx\n", (long)element);
 			return;
 		}
-		//element->generic.ximage->bits_per_pixel = bpp*8;
-		//element->generic.ximage->bytes_per_line = bpp*element->generic.pxwidth;
+		element->generic.ximage->bits_per_pixel = bpp*8;
+		element->generic.ximage->bytes_per_line = bpp*element->generic.pxwidth;
 	}
-	XPutImage(screen->display, screen->window, screen->gc, element->generic.ximage, 0, 0, element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight);
+	if(element->generic.display || screen->madevisible){
+		XPutImage(screen->display, screen->window, screen->gc, element->generic.ximage, 0, 0, element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight);
+		element->generic.display = false;
+	}
 }
-
 void renderScreen(screen_t *screen){
 	handleInput(screen);
 	for(int i = 0; i < screen->maxElementCount; i++){

@@ -22,7 +22,11 @@ typedef struct buttonStruct{
 	int pxwidth;
 	int pxheight;
 	bool visible;
+	bool focused; // not used for button
+	bool display;
 	void (*onClick)();
+	void (*onKeyPress)();
+	void (*onHover)();
 	char *buttonbuffer;
 	char currBorderColor;
 	text_t *text;
@@ -36,12 +40,14 @@ void _writeButtonElement(button_t *returnButton, int x, int y, char *text, int s
 	returnButton->x = x;
 	returnButton->y = y;
 	returnButton->visible = true;
-	returnButton->text = calloc(1,sizeof(text_t));
+	returnButton->text = (text_t*)calloc(1,sizeof(text_t));
 	_writeTextElement(returnButton->text, 0, 0, text, size, fg, bg, display);
 	returnButton->currBorderColor = regularBorder;
 	returnButton->size = size;
 	returnButton->byteWidth = 2*returnButton->bpp*size+returnButton->text->byteWidth;
-	returnButton->buttonbuffer = calloc(returnButton->byteWidth*(size*10),1);
+	returnButton->pxwidth = returnButton->byteWidth/returnButton->bpp;
+	returnButton->pxheight = size*10;
+	returnButton->buttonbuffer = (char*)calloc(returnButton->byteWidth*(size*10),1);
 }
 
 void _renderButton(button_t* button){

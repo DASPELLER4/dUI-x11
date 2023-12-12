@@ -19,15 +19,17 @@ typedef struct{
 	int pxwidth;
 	int pxheight;
 	bool visible;
+	bool focused;
+	bool display;
 	void (*onClick)();
-	void (*onReturn)();
 	void (*onKeyPress)(char);
+	void (*onHover)();
+	void (*onReturn)();
 	text_t *text;
 	char *input;
 	char *tempText;
 	int width;
 	int maxInputLength;
-	bool focused;
 	int cursor;
 } input_t;
 
@@ -36,11 +38,11 @@ void _writeInputElement(input_t* inputReturn, int x, int y, int width, int fontS
 	inputReturn->x = x;
 	inputReturn->y = y;
 	inputReturn->width = width;
-	inputReturn->tempText = calloc(width+1,1);
+	inputReturn->tempText = (char*)calloc(width+1,1);
 	memset(inputReturn->tempText, 0x20, width);
 	inputReturn->maxInputLength = 2;
-	inputReturn->input = calloc(inputReturn->maxInputLength, 1);
-	inputReturn->text = calloc(1,sizeof(text_t));
+	inputReturn->input = (char*)calloc(inputReturn->maxInputLength, 1);
+	inputReturn->text = (text_t*)calloc(1,sizeof(text_t));
 	_writeTextElement(inputReturn->text, 0, 0, inputReturn->tempText, fontSize, fg, bg, display);
 	inputReturn->pxwidth = inputReturn->text->pxwidth;
 	inputReturn->pxheight = inputReturn->text->pxheight;
@@ -54,11 +56,7 @@ void _renderInput(input_t *input){
 	if(input->cursor < input->width && input->focused)
 		input->tempText[input->cursor] = '|';
 	free(input->text->text);
-	if(input->ximage)
-		XDestroyImage(input->ximage);
-	else
-		free(input->text->textbuffer);
-	input->text->text = malloc(strlen(input->tempText)+1);
+	input->text->text = (char*)malloc(strlen(input->tempText)+1);
 	memcpy(input->text->text, input->tempText, strlen(input->tempText)+1);
 	_renderText(input->text);
 }
@@ -77,8 +75,8 @@ void _backspaceInput(input_t *input){
 	_renderInput(input);
 }
 
-void _addCharacterToInput(unsigned char c, input_t *input){
-	if(!c)
+void _addCharacterToInput(char c, input_t *input){
+	if(c == 0x0)
 		return;
 	switch(c){
 		case 0x8:
@@ -97,8 +95,6 @@ void _addCharacterToInput(unsigned char c, input_t *input){
 	}
 	input->input[input->cursor++] = c;
 	input->input[input->cursor] = 0;
-	if(input->onKeyPress)
-		input->onKeyPress((char)c);
 	_renderInput(input);
 }
 

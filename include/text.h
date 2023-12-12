@@ -22,13 +22,17 @@ typedef struct{
 	int pxwidth;
 	int pxheight;
 	bool visible;
+	bool focused; // not used for text
+	bool display;
 	void (*onClick)();
+	void (*onKeypress)(char); // ==
+	void (*onHover)();
 	char *fgColor;
 	char *bgColor;
 	int fontSize;
 	int kerning;
 	char *text;
-	uint8_t *textbuffer;
+	char *textbuffer;
 	int byteWidth;
 	int bpp;
 	long subpixelOrder;
@@ -301,7 +305,7 @@ void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSiz
                          (*visualInfo).red_mask == 0x00FF00 ? 1 : // GBR
                          (*visualInfo).red_mask == 0x0000FF ? 2 : -1; // BGR
 	XFree(visualInfo);
-	returnText->bpp = DisplayPlanes(display, DefaultScreen(display));
+	returnText->bpp = DisplayPlanes(display, DefaultScreen(display))/8;
 	returnText->x = x;
 	returnText->y = y;
 	returnText->visible = true;
@@ -314,7 +318,7 @@ void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSiz
 	returnText->text = (char*)malloc(strlen(text)+1);
 	memcpy(returnText->text, text, strlen(text)+1);
 	returnText->byteWidth = returnText->kerning*strlen(text)*returnText->bpp+strlen(text)*returnText->bpp*fontSize*8;
-	returnText->textbuffer = (uint8_t*)calloc(returnText->byteWidth*8*fontSize,1);
+	returnText->textbuffer = (char*)calloc(returnText->byteWidth*8*fontSize,1);
 	returnText->pxwidth = returnText->byteWidth/returnText->bpp;
 	returnText->pxheight = fontSize*8;
 }

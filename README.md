@@ -7,6 +7,8 @@
 * ~~allow the user to change the contents of elements~~
 * ~~set height and widths for each element~~
 * prefix each function with a D so that the user wont have collisions with the function names
+* add more tests to make it easier on devs before the docs are made
+* make the docs
 
 dUI-x11 is a simple port of dUI to be able to use it in x11 amongst other windows.
 

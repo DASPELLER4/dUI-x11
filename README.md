@@ -19,8 +19,7 @@ You include with ```#include <duix11/dui.h>```
 and compile with ```-lX11```
 
 ## Whats currently being worked on:
-* Creating a ui element union, to make the program more expandable in the case I add elements like dropdowns
-* "Improving Reliability"
+* Figuring out how to improve the rendering (remove flashes caused by moving the elements)
 
 ## What I would *like* to work on:
 * Element alignment, like QVBoxLayout that automatically aligns sub elements in a reasonable manner (now you can see why im working on the uiElement union)

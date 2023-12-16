@@ -33,7 +33,7 @@ typedef struct{
 	int cursor;
 } input_t;
 
-void _writeInputElement(input_t* inputReturn, int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){
+void _writeInputElement(input_t* inputReturn, int x, int y, int width, int fontSize, char fg[3], char bg[3], Display *display){
 	inputReturn->visible = true;
 	inputReturn->x = x;
 	inputReturn->y = y;

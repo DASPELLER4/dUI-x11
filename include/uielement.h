@@ -3,18 +3,18 @@
 
 #include <stdint.h>
 #include <X11/Xlib.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "input.h"
 #include "button.h"
 #include "text.h"
 
-// setText // remember the damn ximage
-
 typedef enum{
 	InputElement,
 	ButtonElement,
 	LabelElement,
-	GenericElement // currently, this means nothing, it just might be used later
+	GenericElement
 } elementType_t;
 
 typedef union{
@@ -46,15 +46,11 @@ void deleteElement(uiElement_t *element){
 			else
 				free(element->input.text->textbuffer);
 			free(element->input.text->text);
-			free(element->input.text->fgColor);
-			free(element->input.text->bgColor);
 			free(element->input.text);
 			free(element->input.tempText);
 			free(element->input.input);
 			break;
 		case ButtonElement:
-			free(element->button.text->bgColor);
-			free(element->button.text->fgColor);
 			free(element->button.text->text);
 			free(element->button.text->textbuffer);
 			if(element->button.ximage)
@@ -69,8 +65,6 @@ void deleteElement(uiElement_t *element){
 			else
 				free(element->text.textbuffer);
 			free(element->text.text);
-			free(element->text.fgColor);
-			free(element->text.bgColor);
 			break;
 		default:
 			fprintf(stderr, "Could not free uiElement @%lx\n",(long)element);
@@ -78,6 +72,8 @@ void deleteElement(uiElement_t *element){
 	free(element);
 	element = NULL;
 }
+
+// SETTERS
 
 void setOnClick(uiElement_t *element, void (*onClick)()){
 	if(!element)
@@ -102,6 +98,17 @@ void setOnKeyPress(uiElement_t *element, void (*onKeyPress)(char)){
 			break;
 		default:
 			fprintf(stderr, "Cannot set onKeyPress for uiElement @%lx (Ui element type doesn't support onKeyPress callbacks)\n",(long)element);
+	}
+}
+void setOnReturn(uiElement_t *element, void (*onReturn)()){ // literally only for inputs for the forseeable future
+	if(!element)
+		return;
+	switch(element->type){
+		case InputElement:
+			element->input.onReturn = onReturn;
+			break;
+		default:
+			fprintf(stderr, "Cannot set onReturn for uiElement @%lx (Ui element type doesn't support onReturn callbacks)\n",(long)element);
 	}
 }
 
@@ -177,7 +184,71 @@ void unfocusElement(uiElement_t *element){
 	}
 }
 
-uiElement_t *createInput(int x, int y, int width, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){
+void _moveElement(int x, int y, uiElement_t *element, Display *display, Window window, uiElement_t **otherElements, int elementCount){ // not a fan of the macro expansion, probably makes errors hard to diagnose
+	if(x==element->generic.x && y==element->generic.y)
+		return;
+	for(int i = 0; i < elementCount; i++){
+		uiElement_t *otherElement = otherElements[i];
+		if(otherElements[i] == NULL || otherElements[i] == element)
+			continue;
+		// check if elements overlap so they can be rerendered
+		if((	(element->generic.y <= otherElement->generic.y+otherElement->generic.pxheight && element->generic.y >= otherElement->generic.y) ||
+			((element->generic.y+element->generic.pxheight <= otherElement->generic.y+otherElement->generic.pxheight && element->generic.y+element->generic.pxheight >= otherElement->generic.y) &&
+			(element->generic.x <= otherElement->generic.x+otherElement->generic.pxwidth && element->generic.x >= otherElement->generic.x)) ||
+			(element->generic.x+element->generic.pxwidth <= otherElement->generic.x+otherElement->generic.pxwidth && element->generic.x+element->generic.pxwidth>= otherElement->generic.x)) ||
+			(otherElement->generic.y <= element->generic.y+element->generic.pxheight && otherElement->generic.y >= element->generic.y) ||
+			((otherElement->generic.y+otherElement->generic.pxheight <= element->generic.y+element->generic.pxheight && otherElement->generic.y+otherElement->generic.pxheight >= element->generic.y) &&
+			(otherElement->generic.x <= element->generic.x+element->generic.pxwidth && otherElement->generic.x >= element->generic.x)) ||
+			(otherElement->generic.x+otherElement->generic.pxwidth <= element->generic.x+element->generic.pxwidth && otherElement->generic.x+otherElement->generic.pxwidth >= element->generic.x)) // NIGHTMARE NIGHTMARE NIGHTMARE
+			otherElements[i]->generic.display = true;
+	}
+	XClearArea(display, window, element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight, false);
+	element->generic.x = x;
+	element->generic.y = y;
+	element->generic.display = true;
+}
+
+void _setElementText(char *text, uiElement_t *element, Display *display, Window window, uiElement_t **otherElements, int elementCount){
+	if(!element)
+		return;
+	XClearArea(display, window, element->generic.x, element->generic.y, element->generic.pxwidth, element->generic.pxheight, false);
+	switch(element->type){ // type dependant, not very good
+		case LabelElement:
+			if(element->text.ximage)
+				XDestroyImage(element->text.ximage);
+			else
+				free(element->text.textbuffer);
+			element->text.ximage = NULL;
+			free(element->text.text);
+			_writeTextElement(&element->text, element->generic.x, element->generic.y, text, element->text.fontSize, element->text.fgColor, element->text.bgColor, display);
+			_renderText(&element->text);
+			break;
+		case ButtonElement:
+			if(element->button.ximage)
+				XDestroyImage(element->button.ximage);
+			else
+				free(element->button.buttonbuffer);
+			element->button.ximage = NULL;
+			free(element->button.text->textbuffer);
+			free(element->button.text->text);
+			char fgColor[3], bgColor[3];
+			memcpy(fgColor, element->button.text->fgColor, 3);
+			memcpy(bgColor, element->button.text->bgColor, 3);
+			int fontSize = element->button.text->fontSize;
+			free(element->button.text);
+			_writeButtonElement(&element->button, element->generic.x, element->generic.y, text, fontSize, fgColor, bgColor, display);
+			_renderButton(&element->button);
+			break;
+		default:
+			fprintf(stderr,"Cannot set text for element @%lx (Ui Element type doesn't support changing text)\n", (long)element);
+			return;
+	}
+	element->generic.display = true;
+}
+
+// "Constructors"
+
+uiElement_t *createInput(int x, int y, int width, int fontSize, char fg[3], char bg[3], Display *display){
 	uiElement_t *newElement = calloc(1,sizeof(uiElement_t));
 	_writeInputElement(&newElement->input, x, y, width, fontSize, fg, bg, display);
 	_renderInput(&newElement->input);
@@ -186,7 +257,7 @@ uiElement_t *createInput(int x, int y, int width, int fontSize, uint8_t fg[3], u
 	return newElement;
 }
 
-uiElement_t *createLabel(int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){
+uiElement_t *createLabel(int x, int y, char *text, int fontSize, char fg[3], char bg[3], Display *display){
 	uiElement_t *newElement = calloc(1,sizeof(uiElement_t));
 	_writeTextElement(&newElement->text, x, y, text, fontSize, fg, bg, display);
 	_renderText(&newElement->text);
@@ -195,13 +266,32 @@ uiElement_t *createLabel(int x, int y, char *text, int fontSize, uint8_t fg[3], 
 	return newElement;
 }
 
-uiElement_t *createButton(int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], Display *display){
+uiElement_t *createButton(int x, int y, char *text, int size, char fg[3], char bg[3], Display *display){
 	uiElement_t *newElement = calloc(1,sizeof(uiElement_t));
 	_writeButtonElement(&newElement->button, x, y, text, size, fg, bg, display);
 	_renderButton(&newElement->button);
 	newElement->type = ButtonElement;
 	newElement->button.display = true;
 	return newElement;
+}
+
+// Getters
+
+char *getElementText(uiElement_t *element){
+	switch(element->type){
+		case LabelElement:
+			return element->text.text;
+			break;
+		case ButtonElement:
+			return element->button.text->text;
+			break;
+		case InputElement:
+			return element->input.input;
+			break;
+		default:
+			fprintf(stderr,"Cannot read text for element @%lx (Ui Element type doesn't support text)\n", (long)element);
+			return NULL;
+	}
 }
 
 #endif

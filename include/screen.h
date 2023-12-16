@@ -19,6 +19,9 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
+#define moveElement(x,y,element,screen) _moveElement(x,y,element, screen->display, screen->window, screen->elements, screen->maxElementCount)
+#define setElementText(text,element,screen) _setElementText(text,element, screen->display, screen->window, screen->elements, screen->maxElementCount)
+
 typedef struct{
 	Display *display;
 	Window window;
@@ -30,7 +33,6 @@ typedef struct{
 	mouse_t *mouse;
 	uiElement_t **elements;
 	int maxElementCount;
-	bool exposed;
 	bool madevisible;
 } screen_t;
 
@@ -93,16 +95,12 @@ void addElement(uiElement_t *element, screen_t *screen){
 void handleInput(screen_t* screen){
 	XEvent *newEvent = calloc(1,sizeof(XEvent));
 	XCheckWindowEvent(screen->display, screen->window, VisibilityChangeMask | ExposureMask | PointerMotionMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask, newEvent);
-	if(newEvent->type == Expose){
-		screen->exposed = true;
-	} else if(newEvent->type == VisibilityNotify)
+	if(newEvent->type == Expose || newEvent->type == VisibilityNotify)
 		screen->madevisible = true;
 	else
 		screen->madevisible = false;
-	if(screen->exposed){
-		updateMouse(screen->mouse, newEvent);
-		updateKeyboard(screen->keyboard, newEvent);
-	}
+	updateMouse(screen->mouse, newEvent);
+	updateKeyboard(screen->keyboard, newEvent);
 	free(newEvent);
 	for(int i = 0; i < screen->maxElementCount; i++){
 		if(screen->elements[i] == NULL || !screen->elements[i]->generic.visible)
@@ -124,7 +122,7 @@ void handleInput(screen_t* screen){
 }
 
 void renderElementToScreen(uiElement_t *element, screen_t *screen){
-	if(!screen->exposed && element->generic.visible)
+	if(!element->generic.visible)
 		return;
 	int bpp;
 	char *buffer;
@@ -168,5 +166,4 @@ void renderScreen(screen_t *screen){
 	}
 	XFlush(screen->display);
 }
-
 #endif

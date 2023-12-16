@@ -27,8 +27,8 @@ typedef struct{
 	void (*onClick)();
 	void (*onKeypress)(char); // ==
 	void (*onHover)();
-	char *fgColor;
-	char *bgColor;
+	char fgColor[3];
+	char bgColor[3];
 	int fontSize;
 	int kerning;
 	char *text;
@@ -295,7 +295,7 @@ const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc}};
 
-void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], Display *display){
+void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, char fg[3], char bg[3], Display *display){
 	XVisualInfo visualTemplate;
 	XVisualInfo *visualInfo;
 	visualTemplate.screen = DefaultScreen(display);
@@ -310,10 +310,8 @@ void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSiz
 	returnText->y = y;
 	returnText->visible = true;
 	returnText->fontSize = fontSize;
-	returnText->fgColor = (char*)malloc(returnText->bpp);
-	returnText->bgColor = (char*)malloc(returnText->bpp);
-	memcpy(returnText->fgColor, fg, returnText->bpp);
-	memcpy(returnText->bgColor, bg, returnText->bpp);
+	memcpy(returnText->fgColor, fg, 3);
+	memcpy(returnText->bgColor, bg, 3);
 	returnText->kerning = fontSize;
 	returnText->text = (char*)malloc(strlen(text)+1);
 	memcpy(returnText->text, text, strlen(text)+1);

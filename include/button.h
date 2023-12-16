@@ -35,7 +35,7 @@ typedef struct buttonStruct{
 	int size;
 } button_t;
 
-void _writeButtonElement(button_t *returnButton, int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], Display *display){
+void _writeButtonElement(button_t *returnButton, int x, int y, char *text, int size, char fg[3], char bg[3], Display *display){
 	returnButton->bpp = DisplayPlanes(display, DefaultScreen(display))/8;
 	returnButton->x = x;
 	returnButton->y = y;

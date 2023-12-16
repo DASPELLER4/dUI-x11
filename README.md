@@ -1,12 +1,10 @@
 # dUI-x11
 
-This is a work in progress branch so i can show what im working on. currently im working on the uiElement_t system
-
 ## TODO
 * ~~convert RGB arrays to the default display colormap in x11 (currently it uses BGR (which is most common))~~
 * ~~handleInputs for uiElements~~
-* allow the user to set the positions of elements, unrendering the old element and rendering the new one
-* allow the user to change the contents of elements
+* ~~allow the user to set the positions of elements, unrendering the old element and rendering the new one~~
+* ~~allow the user to change the contents of elements~~
 * ~~set height and widths for each element~~
 
 dUI-x11 is a simple port of dUI to be able to use it in x11 amongst other windows.

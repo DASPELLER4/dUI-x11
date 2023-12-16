@@ -10,7 +10,7 @@
 #include <X11/Xos.h>
 
 typedef struct{
-	unsigned char keypressed;
+	char keypressed;
 } keyboard_t;
 
 keyboard_t *getKeyboard(){
@@ -24,7 +24,7 @@ void closeKeyboard(keyboard_t *keyboard){
 }
 
 void updateKeyboard(keyboard_t *keyboard, XEvent *event){
-	if(event && event->type == KeyPress && event->xkey.keycode < 32764){ // the less than condition is temporary to combat an error
+	if(event && event->type == KeyPress){
 		char keys[32];
 		KeySym key;
 		XLookupString(&event->xkey, keys, 8, &key, NULL);

@@ -17,7 +17,7 @@ typedef struct{
 
 mouse_t *getMouse(){
 	mouse_t *newMouse = calloc(1,sizeof(mouse_t));
-	newMouse->x = newMouse->y = 0;
+	newMouse->x = newMouse->y = -1;
 	newMouse->clicked = 0;
 	newMouse->justClicked = 0;
 	return newMouse;

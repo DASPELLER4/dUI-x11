@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xlib.h>
 
 #include "color_macros.h"
 
@@ -14,18 +15,27 @@
 #define TEXT_L 4
 
 typedef struct{
-	char *fgColor;
-	char *bgColor;
+	int type;
+	XImage *ximage;
+	int x;
+	int y;
+	int pxwidth;
+	int pxheight;
+	bool visible;
+	bool focused; // not used for text
+	bool display;
+	void (*onClick)();
+	void (*onKeypress)(char); // ==
+	void (*onHover)();
+	char fgColor[3];
+	char bgColor[3];
 	int fontSize;
 	int kerning;
 	char *text;
-	uint8_t *textbuffer;
-	XImage *ximage;
-	bool visible;
-	int x;
-	int y;
+	char *textbuffer;
 	int byteWidth;
 	int bpp;
+	long subpixelOrder;
 } text_t;
 
 const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
@@ -285,64 +295,62 @@ const uint8_t ascii[256][8] = {{0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc},
 {0x33,0x33,0xcc,0xcc,0x33,0x33,0xcc,0xcc}};
 
-text_t *createTextElement(int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp);
-void deleteTextElement(text_t *text);
-void setTextText(text_t *textElem, char *text);
-void regenerateTextBuffer(text_t *text);
-void renderText(text_t* text);
+void _writeTextElement(text_t *returnText, int x, int y, char *text, int fontSize, char fg[3], char bg[3], Display *display){
+	XVisualInfo visualTemplate;
+	XVisualInfo *visualInfo;
+	visualTemplate.screen = DefaultScreen(display);
+	int number;
+	visualInfo = XGetVisualInfo(display, VisualScreenMask, &visualTemplate, &number);
+	returnText->subpixelOrder = (*visualInfo).red_mask == 0xFF0000 ? 0 : // RGB
+                         (*visualInfo).red_mask == 0x00FF00 ? 1 : // GBR
+                         (*visualInfo).red_mask == 0x0000FF ? 2 : -1; // BGR
+	XFree(visualInfo);
+	returnText->bpp = DisplayPlanes(display, DefaultScreen(display))/8;
+	returnText->x = x;
+	returnText->y = y;
+	returnText->visible = true;
+	returnText->fontSize = fontSize;
+	memcpy(returnText->fgColor, fg, 3);
+	memcpy(returnText->bgColor, bg, 3);
+	returnText->kerning = fontSize;
+	returnText->text = (char*)malloc(strlen(text)+1);
+	memcpy(returnText->text, text, strlen(text)+1);
+	returnText->byteWidth = returnText->kerning*strlen(text)*returnText->bpp+strlen(text)*returnText->bpp*fontSize*8;
+	returnText->textbuffer = (char*)calloc(returnText->byteWidth*8*fontSize,1);
+	returnText->pxwidth = returnText->byteWidth/returnText->bpp;
+	returnText->pxheight = fontSize*8;
+}
 
-text_t *createTextElement(int x, int y, char *text, int fontSize, uint8_t fg[3], uint8_t bg[3], int bpp){
-	text_t *newText = (text_t*)calloc(sizeof(text_t),1);
-	newText->x = x;
-	newText->y = y;
-	newText->bpp = bpp;
-	newText->visible = true;
-	newText->fontSize = fontSize;
-	newText->fgColor = (char*)malloc(bpp);
-	newText->bgColor = (char*)malloc(bpp);
-	for(int i = 0; i < bpp; i++){
-		newText->fgColor[i] = fg[2-i];
-		newText->bgColor[i] = bg[2-i];
+void _renderText(text_t* text){
+	uint8_t *orderFg = (uint8_t*)malloc(text->bpp);
+	uint8_t *orderBg = (uint8_t*)malloc(text->bpp);
+	switch(text->subpixelOrder){
+		case 0:
+			memcpy(orderFg, text->fgColor, text->bpp);
+			memcpy(orderBg, text->bgColor, text->bpp);
+			break;
+		case 1:
+			orderFg[0] = text->fgColor[1];
+			orderFg[1] = text->fgColor[2];
+			orderFg[2] = text->fgColor[0];
+			orderBg[0] = text->bgColor[1];
+			orderBg[1] = text->bgColor[2];
+			orderBg[2] = text->bgColor[0];
+			break;
+		case 2:
+			for(int i = 0; i < text->bpp; i++){
+				orderFg[2-i] = text->fgColor[i];
+				orderBg[2-i] = text->bgColor[i];
+			}
+			break;
+		default:
+			fprintf(stderr, "Couldn't determine subpixels for display, defaulting to RGB");
+			memcpy(orderFg, text->fgColor, text->bpp);
+			memcpy(orderBg, text->bgColor, text->bpp);
+			break;
 	}
-	newText->kerning = fontSize;
-	newText->text = (char*)malloc(strlen(text)+1);
-	memcpy(newText->text, text, strlen(text)+1);
-	newText->byteWidth = newText->kerning*strlen(text)*bpp+strlen(text)*bpp*fontSize*8;
-	newText->textbuffer = (uint8_t*)calloc(newText->byteWidth*8*fontSize,1);
-	return newText;
-}
-
-void deleteTextElement(text_t *text){
-	text->visible = false;
-	if(text->ximage)
-		XDestroyImage(text->ximage);
-	else
-		free(text->textbuffer);
-	free(text->text);
-	free(text->fgColor);
-	free(text->bgColor);
-	free(text);
-	text = NULL;
-}
-
-void setTextText(text_t *textElem, char *text){
-	free(textElem->text);
-	free(textElem->textbuffer);
-	textElem->text = (char*)malloc(strlen(text)+1);
-	memcpy(textElem->text, text, strlen(text)+1);
-	textElem->byteWidth = textElem->kerning*strlen(text)*textElem->bpp+strlen(text)*textElem->bpp*textElem->fontSize*8;
-	textElem->textbuffer = (uint8_t*)calloc(textElem->byteWidth*8*textElem->fontSize,1);
-}
-
-void regenerateTextBuffer(text_t *text){
-	free(text->textbuffer);
-	text->byteWidth = text->kerning*strlen(text->text)*text->bpp+strlen(text->text)*text->bpp*text->fontSize*8;
-	text->textbuffer = (uint8_t*)calloc(text->byteWidth*8*text->fontSize,1);
-}
-
-void renderText(text_t* text){
 	for(int u = 0; u < text->byteWidth*text->fontSize*8; u+=text->bpp)
-		memcpy(text->textbuffer+u, text->bgColor, text->bpp);
+		memcpy(text->textbuffer+u, orderBg, text->bpp);
 	for(uint8_t i = 0; text->text[i]; i++){ // each character
 		for(int y = 0; y<8; y++){ // each row of the character
 			for(int z = 0; z < text->fontSize; z++){ // how many times to draw that row
@@ -351,11 +359,13 @@ void renderText(text_t* text){
 					//printf("%d", (letters[(text->text[i]&0x1F)-1][y]>>(7-j))&0x1);
 					if((ascii[(unsigned char)text->text[i]][y]>>(7-j))&0x1) // if the current bit is a 1
 						for(int u = 0; u < text->fontSize; u++)
-							memcpy(text->textbuffer+(j*text->fontSize+u)*text->bpp+pos, text->fgColor, text->bpp);
+							memcpy(text->textbuffer+(j*text->fontSize+u)*text->bpp+pos, orderFg, text->bpp);
 				}
 			}
 		}
 	}
+	free(orderFg);
+	free(orderBg);
 }
 
 #endif

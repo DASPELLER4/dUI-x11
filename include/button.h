@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <X11/Xutil.h>
+#include <X11/Xlib.h>
 
 #include "text.h"
 
@@ -14,97 +15,71 @@
 #define clickBorder 0xFF
 
 typedef struct buttonStruct{
-	char *buttonbuffer;
+	int type;
 	XImage *ximage;
-	char currBorderColor;
-	text_t *text;
-	void (*onClick)();
-	bool visible;
-	int bpp;
 	int x;
 	int y;
+	int pxwidth;
+	int pxheight;
+	bool visible;
+	bool focused; // not used for button
+	bool display;
+	void (*onClick)();
+	void (*onKeyPress)();
+	void (*onHover)();
+	char *buttonbuffer;
+	char currBorderColor;
+	text_t *text;
+	int bpp;
 	int byteWidth;
 	int size;
 } button_t;
 
-button_t *createButtonElement(int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], void (*onClick)(), int bpp);
-void deleteButtonElement(button_t *button);
-void renderButton(button_t* button);
-void regenerateButtonBuffer(button_t *button);
-void setButtonText(button_t *button, char *text);
-void hoverButton(button_t* button);
-void clickButton(button_t* button);
-void resetButton(button_t* button);
-
-button_t *createButtonElement(int x, int y, char *text, int size, uint8_t fg[3], uint8_t bg[3], void (*onClick)(), int bpp){
-	button_t *newButton = (button_t*)calloc(sizeof(button_t),1);
-	newButton->bpp = bpp;
-	newButton->x = x;
-	newButton->y = y;
-	newButton->visible = true;
-	newButton->text = createTextElement(0, 0, text, size, fg, bg, bpp);
-	newButton->onClick = onClick;
-	newButton->currBorderColor = regularBorder;
-	newButton->size = size;
-	newButton->byteWidth = 2*bpp*size+newButton->text->byteWidth;
-	newButton->buttonbuffer = calloc(newButton->byteWidth*(size*10),1);
-	return newButton;
+void _writeButtonElement(button_t *returnButton, int x, int y, char *text, int size, char fg[3], char bg[3], Display *display){
+	returnButton->bpp = DisplayPlanes(display, DefaultScreen(display))/8;
+	returnButton->x = x;
+	returnButton->y = y;
+	returnButton->visible = true;
+	returnButton->text = (text_t*)calloc(1,sizeof(text_t));
+	_writeTextElement(returnButton->text, 0, 0, text, size, fg, bg, display);
+	returnButton->currBorderColor = regularBorder;
+	returnButton->size = size;
+	returnButton->byteWidth = 2*returnButton->bpp*size+returnButton->text->byteWidth;
+	returnButton->pxwidth = returnButton->byteWidth/returnButton->bpp;
+	returnButton->pxheight = size*10;
+	returnButton->buttonbuffer = (char*)calloc(returnButton->byteWidth*(size*10),1);
 }
 
-void deleteButtonElement(button_t *button){
-	deleteTextElement(button->text);
-	if(button->ximage)
-		XDestroyImage(button->ximage);
-	else
-		free(button->buttonbuffer);
-	free(button);
-	button = NULL;
-}
-
-void renderButton(button_t* button){
-	if(button->text->bpp != button->bpp){
-		button->text->bpp = button->bpp;
-		regenerateTextBuffer(button->text);
-	}
+void _renderButton(button_t* button){
 	bool rerender = true;
-	for(int i = 0; i < button->text->byteWidth; i++)
+	for(int i = 0; i < button->text->byteWidth && rerender; i++)
 		if(button->text->textbuffer[i]){
 			rerender = false;
 			break;
 		}
 	if(rerender)
-		renderText(button->text);
+		_renderText(button->text);
 	memset(button->buttonbuffer, button->currBorderColor, button->byteWidth*(button->size*10));
 	for(int i = button->size; i < button->size*9; i++){
 		memcpy(button->buttonbuffer+button->size*button->bpp+i*button->byteWidth, button->text->textbuffer+(i-button->size)*button->text->byteWidth, button->text->byteWidth);
 	}
 }
 
-void regenerateButtonBuffer(button_t *button){
-	button->byteWidth = 2*button->bpp*button->size+button->text->byteWidth;
-	free(button->buttonbuffer);
-	button->buttonbuffer = calloc(button->byteWidth*(10*button->size),1);
-}
-
-void setButtonText(button_t *button, char *text){
-	setTextText(button->text, text);
-	regenerateButtonBuffer(button);
-}
-
 void hoverButton(button_t* button){
 	button->currBorderColor = hoverBorder;
-	renderButton(button);
+	_renderButton(button);
 }
 
 void clickButton(button_t* button){
 	button->currBorderColor = clickBorder;
-	button->onClick();
-	renderButton(button);
+	if(button->onClick)
+		button->onClick();
+	_renderButton(button);
 }
 
 void resetButton(button_t* button){
 	button->currBorderColor = regularBorder;
-	renderButton(button);
+	_renderButton(button);
 }
 
 #endif

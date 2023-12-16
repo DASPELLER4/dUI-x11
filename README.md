@@ -6,6 +6,7 @@
 * ~~allow the user to set the positions of elements, unrendering the old element and rendering the new one~~
 * ~~allow the user to change the contents of elements~~
 * ~~set height and widths for each element~~
+* prefix each function with a D so that the user wont have collisions with the function names
 
 dUI-x11 is a simple port of dUI to be able to use it in x11 amongst other windows.
 

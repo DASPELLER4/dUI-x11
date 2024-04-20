@@ -18,6 +18,8 @@ It is currently WIP, and has issues such as the lack of clearing the screen so t
 
 Since it is still early days and bound to many changes, documentation has not been made yet, you can however use ```tests/test.c``` for reference.
 
+Install with ```sudo make install```
+
 You include with ```#include <duix11/dui.h>```
 and compile with ```-lX11```
 

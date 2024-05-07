@@ -122,7 +122,7 @@ void setOnHover(uiElement_t *element, void (*onHover)){
 			element->generic.onHover = onHover;
 			break;
 		default:
-			fprintf(stderr, "Cannot set onClick for uiElement @%lx (Ui element type doesn't support onClick callbacks)\n",(long)element);
+			fprintf(stderr, "Cannot set onHover for uiElement @%lx (Ui element type doesn't support onHover callbacks)\n",(long)element);
 	}	
 }
 
